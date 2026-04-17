@@ -1,6 +1,5 @@
 import os
 import logging
-import asyncio
 import io
 from flask import Flask
 from telegram import Update
@@ -117,8 +116,6 @@ Simply type any image description and I'll generate it!
 • Add mood: "peaceful", "dramatic", "dreamy"  
 • Add lighting: "golden hour", "neon", "soft light"
 • Be detailed: "A red fox jumping over a log in a snowy forest"
-
-**Need help?** Contact @BotSupport
 """
     
     await update.message.reply_text(help_text, parse_mode='Markdown')
@@ -182,7 +179,7 @@ def run_bot():
         logger.error("TELEGRAM_BOT_TOKEN not set!")
         return
     
-    # Create application
+    # Create application with updated builder pattern
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     
     # Add handlers
@@ -191,7 +188,7 @@ def run_bot():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_error_handler(error_handler)
     
-    # Start bot
+    # Start bot with polling (updated method for v21)
     logger.info("Starting bot...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
@@ -200,7 +197,7 @@ if __name__ == '__main__':
     
     # Run Flask in a separate thread for health checks
     def run_flask():
-        app.run(host='0.0.0.0', port=int(os.getenv('PORT', 10000)))
+        app.run(host='0.0.0.0', port=int(os.getenv('PORT', 10000)), debug=False)
     
     flask_thread = threading.Thread(target=run_flask)
     flask_thread.start()
