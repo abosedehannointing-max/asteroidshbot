@@ -1,6 +1,7 @@
 import os
 import logging
 import io
+import asyncio
 from flask import Flask
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
@@ -173,13 +174,13 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Log errors"""
     logger.error(f"Update {update} caused error {context.error}")
 
-def run_bot():
-    """Run the bot"""
+async def run_bot():
+    """Run the bot asynchronously"""
     if not TELEGRAM_TOKEN:
         logger.error("TELEGRAM_BOT_TOKEN not set!")
         return
     
-    # Create application with updated builder pattern
+    # Create application
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     
     # Add handlers
@@ -188,19 +189,45 @@ def run_bot():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_error_handler(error_handler)
     
-    # Start bot with polling (updated method for v21)
+    # Start bot with polling
     logger.info("Starting bot...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling()
+    
+    # Keep the bot running
+    try:
+        # Keep the event loop running
+        while True:
+            await asyncio.sleep(1)
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Stopping bot...")
+        await application.updater.stop()
+        await application.stop()
+        await application.shutdown()
+
+def main():
+    """Main function to run both Flask and bot"""
+    # Run Flask in a separate thread
+    def run_flask():
+        app.run(host='0.0.0.0', port=int(os.getenv('PORT', 10000)), debug=False, use_reloader=False)
+    
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.daemon = True
+    flask_thread.start()
+    
+    # Create new event loop for Python 3.14
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    # Run the bot
+    try:
+        loop.run_until_complete(run_bot())
+    except KeyboardInterrupt:
+        logger.info("Bot stopped")
+    finally:
+        loop.close()
 
 if __name__ == '__main__':
     import threading
-    
-    # Run Flask in a separate thread for health checks
-    def run_flask():
-        app.run(host='0.0.0.0', port=int(os.getenv('PORT', 10000)), debug=False)
-    
-    flask_thread = threading.Thread(target=run_flask)
-    flask_thread.start()
-    
-    # Run the bot
-    run_bot()
+    main()
